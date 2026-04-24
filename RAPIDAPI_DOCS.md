@@ -2,7 +2,7 @@
 
 ## Overview
 
-This API gives you AI-powered resume analysis in four endpoints. All responses are JSON. All endpoints are rate-limited per plan.
+This API gives you AI-powered resume analysis in five endpoints. All responses are JSON. All endpoints are rate-limited per plan.
 
 Supply your RapidAPI key via the `X-RapidAPI-Key` header — this is added automatically by RapidAPI's code snippets.
 
@@ -10,9 +10,9 @@ Supply your RapidAPI key via the `X-RapidAPI-Key` header — this is added autom
 
 ## Endpoints
 
-### GET /health
+### Health Check — GET /health
 
-Check if the API is running. No authentication required. Use this to verify connectivity before making other calls.
+Returns `{"status": "ok"}` when the service is running. No authentication required.
 
 **Response**
 
@@ -22,9 +22,18 @@ Check if the API is running. No authentication required. Use this to verify conn
 
 ---
 
-### POST /resume/parse
+### Parse Resume — POST /resume/parse
 
-Extract structured data from a resume. Supply either `text` (raw string) or `file_url` (public URL to a plain-text file).
+Extract structured data (name, email, skills, experience, education) from raw resume text or a public URL.
+
+**Request body example**
+
+```
+{
+  "text": "Alice Smith\nalice@example.com\nSenior Engineer at Acme Corp 2019-2024\nSkills: Python, Go, Kubernetes",
+  "language": "en"
+}
+```
 
 **Request fields**
 
@@ -49,9 +58,18 @@ Extract structured data from a resume. Supply either `text` (raw string) or `fil
 
 ---
 
-### POST /resume/score
+### Score Resume — POST /resume/score
 
-Compare a resume against a job description and get numeric match scores.
+Compare a resume against a job description. Returns match scores (0–100) for skills, experience, and education, plus missing skills and a hiring verdict.
+
+**Request body example**
+
+```
+{
+  "resume_text": "Alice Smith. 5 years Python, Go, Kubernetes.",
+  "job_description": "Staff Backend Engineer. 6+ years Python, AWS, distributed systems."
+}
+```
 
 **Request fields**
 
@@ -74,9 +92,19 @@ Compare a resume against a job description and get numeric match scores.
 
 ---
 
-### POST /resume/rewrite
+### Rewrite Bullets — POST /resume/rewrite
 
-Rewrite up to 20 resume bullet points with stronger action verbs and quantifiable metrics.
+Rewrite resume bullet points with stronger action verbs and metrics, tailored to a target role. Returns the same number of bullets in the same order.
+
+**Request body example**
+
+```
+{
+  "bullets": ["worked on improving the checkout flow", "helped with customer support tickets"],
+  "target_role": "Senior Product Engineer",
+  "tone": "impact"
+}
+```
 
 **Request fields**
 
@@ -102,16 +130,16 @@ Rewrite up to 20 resume bullet points with stronger action verbs and quantifiabl
 
 ---
 
-### GET /resume/skills/trending
+### Trending Skills — GET /resume/skills/trending
 
 Get the top 10 in-demand and 5 rising skills for a job category and region.
 
 **Query parameters**
 
-| Param | Required | Default | Description |
-|-------|----------|---------|-------------|
-| category | Yes | — | Job category: backend, frontend, devops, data science, mobile, security |
-| region | No | US | ISO country code: US, GB, CA, AU, DE, etc. |
+| Param | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| category | STRING | Yes | — | Job category e.g. backend, frontend, devops, data science, mobile, security |
+| region | STRING | No | US | ISO country code e.g. US, GB, CA |
 
 **Response fields**
 
