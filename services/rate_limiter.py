@@ -49,7 +49,7 @@ rate_limiter = InMemoryRateLimiter()
 # Tier configuration
 # ---------------------------------------------------------------------------
 
-FREE_TIER_LIMIT  =     50   # BASIC  — no subscription
+FREE_TIER_LIMIT  =      7   # BASIC  — no subscription (~200/month)
 PRO_TIER_LIMIT   =    500   # PRO    — $9.99/month
 ULTRA_TIER_LIMIT =  2_000   # ULTRA  — $29.99/month
 MEGA_TIER_LIMIT  = 10_000   # MEGA   — $99.99/month

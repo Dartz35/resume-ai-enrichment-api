@@ -66,7 +66,7 @@ class TestInMemoryRateLimiter:
 
     def test_free_tier_limit_constant(self):
         from services.rate_limiter import FREE_TIER_LIMIT
-        assert FREE_TIER_LIMIT == 50
+        assert FREE_TIER_LIMIT == 7
 
     def test_paid_tier_limit_constant(self):
         from services.rate_limiter import PAID_TIER_LIMIT
@@ -89,18 +89,18 @@ class TestInMemoryRateLimiter:
 # Integration tests — HTTP 429 via TestClient
 # ---------------------------------------------------------------------------
 
-def test_free_tier_hit_50_requests_all_pass(client, mocker, parse_payload):
+def test_free_tier_hit_7_requests_all_pass(client, mocker, parse_payload):
     mocker.patch("routes.resume.call_claude_json", new_callable=AsyncMock, return_value=parse_payload)
 
-    for i in range(50):
+    for i in range(7):
         r = client.post(PARSE_ENDPOINT, json=PARSE_BODY)
         assert r.status_code == 200, f"Request {i+1} should pass"
 
 
-def test_free_tier_51st_request_is_rejected(client, mocker, parse_payload):
+def test_free_tier_8th_request_is_rejected(client, mocker, parse_payload):
     mocker.patch("routes.resume.call_claude_json", new_callable=AsyncMock, return_value=parse_payload)
 
-    for _ in range(50):
+    for _ in range(7):
         client.post(PARSE_ENDPOINT, json=PARSE_BODY)
 
     r = client.post(PARSE_ENDPOINT, json=PARSE_BODY)
@@ -110,14 +110,14 @@ def test_free_tier_51st_request_is_rejected(client, mocker, parse_payload):
 def test_rate_limit_error_body(client, mocker, parse_payload):
     mocker.patch("routes.resume.call_claude_json", new_callable=AsyncMock, return_value=parse_payload)
 
-    for _ in range(50):
+    for _ in range(7):
         client.post(PARSE_ENDPOINT, json=PARSE_BODY)
 
     r = client.post(PARSE_ENDPOINT, json=PARSE_BODY)
     detail = r.json()["detail"]
     assert detail["error"] == "rate_limit_exceeded"
     assert detail["tier"] == "basic"
-    assert detail["limit"] == 50
+    assert detail["limit"] == 7
 
 
 def test_paid_tier_key_has_higher_limit(client, mocker, parse_payload):
@@ -136,7 +136,7 @@ def test_free_and_paid_tiers_have_independent_counters(client, mocker, parse_pay
     mocker.patch("routes.resume.call_claude_json", new_callable=AsyncMock, return_value=parse_payload)
 
     # Exhaust free tier.
-    for _ in range(50):
+    for _ in range(7):
         client.post(PARSE_ENDPOINT, json=PARSE_BODY)
 
     assert client.post(PARSE_ENDPOINT, json=PARSE_BODY).status_code == 429
@@ -166,7 +166,7 @@ def test_429_response_includes_tier_info(client, mocker, parse_payload):
     """429 response body should tell the caller their tier and the limit."""
     mocker.patch("routes.resume.call_claude_json", new_callable=AsyncMock, return_value=parse_payload)
 
-    for _ in range(50):
+    for _ in range(7):
         client.post(PARSE_ENDPOINT, json=PARSE_BODY)
 
     r = client.post(PARSE_ENDPOINT, json=PARSE_BODY)
@@ -184,7 +184,7 @@ def test_429_response_includes_tier_info(client, mocker, parse_payload):
     ("PRO",   500,   "pro"),
     ("ULTRA", 2000,  "ultra"),
     ("MEGA",  10000, "mega"),
-    ("BASIC", 50,    "basic"),
+    ("BASIC", 7,     "basic"),
 ])
 def test_rapidapi_subscription_header_sets_correct_limit(
     client, mocker, parse_payload, subscription, expected_limit, expected_tier
