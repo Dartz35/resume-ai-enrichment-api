@@ -10,9 +10,11 @@ Supply your RapidAPI key via the `X-RapidAPI-Key` header — this is added autom
 
 ## Endpoints
 
-### Health Check — GET /health
+### 1. Health Check — GET /health
 
 Returns `{"status": "ok"}` when the service is running. No authentication required.
+
+No headers, query params, or body needed.
 
 **Response**
 
@@ -22,11 +24,11 @@ Returns `{"status": "ok"}` when the service is running. No authentication requir
 
 ---
 
-### Parse Resume — POST /resume/parse
+### 2. Parse Resume — POST /resume/parse
 
 Extract structured data (name, email, skills, experience, education) from raw resume text or a public URL.
 
-**Request body example**
+**Request body**
 
 ```
 {
@@ -58,11 +60,11 @@ Extract structured data (name, email, skills, experience, education) from raw re
 
 ---
 
-### Score Resume — POST /resume/score
+### 3. Score Resume — POST /resume/score
 
 Compare a resume against a job description. Returns match scores (0–100) for skills, experience, and education, plus missing skills and a hiring verdict.
 
-**Request body example**
+**Request body**
 
 ```
 {
@@ -92,11 +94,11 @@ Compare a resume against a job description. Returns match scores (0–100) for s
 
 ---
 
-### Rewrite Bullets — POST /resume/rewrite
+### 4. Rewrite Bullets — POST /resume/rewrite
 
 Rewrite resume bullet points with stronger action verbs and metrics, tailored to a target role. Returns the same number of bullets in the same order.
 
-**Request body example**
+**Request body**
 
 ```
 {
@@ -130,16 +132,16 @@ Rewrite resume bullet points with stronger action verbs and metrics, tailored to
 
 ---
 
-### Trending Skills — GET /resume/skills/trending
+### 5. Trending Skills — GET /resume/skills/trending
 
 Get the top 10 in-demand and 5 rising skills for a job category and region.
 
 **Query parameters**
 
-| Param | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| category | STRING | Yes | — | Job category e.g. backend, frontend, devops, data science, mobile, security |
-| region | STRING | No | US | ISO country code e.g. US, GB, CA |
+| Name | Type | Default | Required | Description |
+|------|------|---------|----------|-------------|
+| category | STRING | backend | Yes | Job category e.g. backend, frontend, devops, data science, mobile, security |
+| region | STRING | US | No | ISO country code e.g. US, GB, CA |
 
 **Response fields**
 
