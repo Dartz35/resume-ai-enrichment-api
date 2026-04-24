@@ -1,0 +1,5 @@
+# Install alongside requirements.txt for local development and CI.
+# pip install -r requirements.txt -r requirements-dev.txt
+pytest>=8.3
+pytest-mock>=3.14
+httpx>=0.27          # already in main requirements; listed here for clarity

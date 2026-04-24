@@ -1,0 +1,806 @@
+openapi: "3.0.3"
+
+info:
+  title: Resume AI Enrichment API
+  version: "1.0.0"
+  description: >
+    Parse resumes, score candidates against job descriptions, rewrite bullet
+    points, and surface trending skills — all powered by Claude (Anthropic).
+
+
+    ## Authentication
+
+    All `/resume/*` endpoints accept an optional `X-API-Key` header.
+
+    * **Free tier** (no key): 50 requests / day, keyed by IP address.
+
+    * **Paid tier** (any non-empty key): 2 000 requests / day, keyed by the
+      API key value.
+
+
+    Obtain a key on the RapidAPI marketplace listing.
+
+
+    ## Error format
+
+    Validation errors (`422`) and AI-parse failures (`422`) return:
+
+    ```json
+    { "detail": { "error": "claude_parse_error", "message": "..." } }
+    ```
+
+    Rate-limit errors (`429`) return:
+
+    ```json
+    { "detail": { "error": "rate_limit_exceeded", "tier": "free",
+                  "limit": 50, "count": 51 } }
+    ```
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://resume-ai-enrichment.p.rapidapi.com
+    description: Production (RapidAPI gateway)
+  - url: http://localhost:8000
+    description: Local development
+
+tags:
+  - name: Meta
+    description: Health and status endpoints — no authentication required.
+  - name: Resume
+    description: >
+      AI-powered resume analysis endpoints.  All require rate-limit compliance;
+      supply `X-API-Key` for the paid (2 000 req/day) tier.
+
+security: []   # default: no global auth; applied per-operation below
+
+components:
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Optional API key for paid-tier access (2 000 requests/day).
+        Omit for free-tier access (50 requests/day, keyed by IP).
+
+  schemas:
+
+    # ── /health ────────────────────────────────────────────────────────────────
+    HealthResponse:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: "1.0.0"
+
+    # ── /resume/parse ──────────────────────────────────────────────────────────
+    ParseResumeRequest:
+      type: object
+      description: >
+        Supply exactly one of `text` (raw resume text) or `file_url` (public
+        URL to a plain-text or HTML resume).  PDF URLs are not yet supported.
+      properties:
+        text:
+          type: string
+          description: Raw resume text.
+          example: |
+            Alice Smith
+            alice@example.com | +1-555-0100
+
+            EXPERIENCE
+            Senior Engineer — Acme Corp (2019-2024)
+            - Reduced API latency by 40% via query optimisation.
+
+            EDUCATION
+            B.Sc. Computer Science, MIT, 2019
+
+            SKILLS: Python, Go, Kubernetes, PostgreSQL
+        file_url:
+          type: string
+          format: uri
+          description: >
+            Publicly accessible URL of a plain-text or HTML resume.
+            PDF not supported.
+          example: https://example.com/resumes/alice-smith.txt
+        language:
+          type: string
+          default: en
+          description: BCP-47 language code of the resume (hint for Claude).
+          example: en
+
+    ExperienceEntry:
+      type: object
+      required: [company, title]
+      properties:
+        company:
+          type: string
+          example: Acme Corp
+        title:
+          type: string
+          example: Senior Engineer
+        duration:
+          type: string
+          nullable: true
+          example: "2019-2024"
+        description:
+          type: string
+          nullable: true
+          example: Reduced API latency by 40%.
+
+    EducationEntry:
+      type: object
+      required: [institution]
+      properties:
+        institution:
+          type: string
+          example: MIT
+        degree:
+          type: string
+          nullable: true
+          example: B.Sc.
+        field:
+          type: string
+          nullable: true
+          example: Computer Science
+        year:
+          type: string
+          nullable: true
+          example: "2019"
+
+    ParseResumeResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+          example: Alice Smith
+        email:
+          type: string
+          nullable: true
+          example: alice@example.com
+        phone:
+          type: string
+          nullable: true
+          example: "+1-555-0100"
+        skills:
+          type: array
+          items:
+            type: string
+          example: [Python, Go, Kubernetes, PostgreSQL]
+        experience_years:
+          type: number
+          nullable: true
+          example: 5
+        experience:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExperienceEntry"
+        education:
+          type: array
+          items:
+            $ref: "#/components/schemas/EducationEntry"
+        languages:
+          type: array
+          items:
+            type: string
+          example: [English]
+
+    # ── /resume/score ──────────────────────────────────────────────────────────
+    ScoreWeights:
+      type: object
+      description: >
+        Relative weights for the three scoring dimensions.  Values must sum to
+        1.0 (±0.05 tolerance).  Omit to use defaults (0.4 / 0.4 / 0.2).
+      properties:
+        skills:
+          type: number
+          default: 0.4
+          example: 0.5
+        experience:
+          type: number
+          default: 0.4
+          example: 0.3
+        education:
+          type: number
+          default: 0.2
+          example: 0.2
+
+    ScoreResumeRequest:
+      type: object
+      required: [resume_text, job_description]
+      properties:
+        resume_text:
+          type: string
+          description: Full plain-text resume.
+          example: |
+            Alice Smith — Senior Engineer
+            5 years Python, Go, Kubernetes. Led platform team at Acme Corp.
+        job_description:
+          type: string
+          description: Full plain-text job description.
+          example: |
+            We are looking for a Staff Backend Engineer with 6+ years of
+            experience in Python, distributed systems, and cloud infrastructure.
+        weights:
+          $ref: "#/components/schemas/ScoreWeights"
+
+    ScoreResumeResponse:
+      type: object
+      required:
+        - overall_score
+        - skill_match
+        - experience_match
+        - education_match
+        - missing_skills
+        - verdict
+      properties:
+        overall_score:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 74
+        skill_match:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 85
+        experience_match:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 70
+        education_match:
+          type: number
+          minimum: 0
+          maximum: 100
+          example: 60
+        missing_skills:
+          type: array
+          items:
+            type: string
+          example: ["distributed systems", "AWS"]
+        verdict:
+          type: string
+          example: >
+            Strong match on technical skills; candidate lacks explicit
+            distributed-systems experience required by the role.
+
+    # ── /resume/rewrite ────────────────────────────────────────────────────────
+    RewriteRequest:
+      type: object
+      required: [bullets, target_role, tone]
+      properties:
+        bullets:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+          description: Resume bullet points to rewrite (1–20 items).
+          example:
+            - "worked on improving the checkout flow"
+            - "helped with customer support tickets"
+        target_role:
+          type: string
+          description: Job title the candidate is targeting.
+          example: Senior Product Engineer
+        tone:
+          type: string
+          enum: [formal, concise, impact]
+          description: >
+            Writing style for the rewritten bullets.
+
+            * `formal`  — polished, professional language.
+
+            * `concise` — punchy, max ~12 words per bullet.
+
+            * `impact`  — lead with achievement, include numbers, power verbs.
+          example: impact
+
+    RewriteResponse:
+      type: object
+      required: [rewritten_bullets]
+      properties:
+        rewritten_bullets:
+          type: array
+          items:
+            type: string
+          description: >
+            Rewritten bullets in the same order and count as the input.
+          example:
+            - "Reduced cart abandonment 18% by redesigning checkout UX flow."
+            - "Resolved 95% of tier-1 support tickets within SLA, improving CSAT."
+
+    # ── /resume/skills/trending ────────────────────────────────────────────────
+    TrendingSkillsResponse:
+      type: object
+      required: [category, top_skills, rising]
+      properties:
+        category:
+          type: string
+          example: backend
+        top_skills:
+          type: array
+          minItems: 10
+          maxItems: 10
+          items:
+            type: string
+          example:
+            - Python
+            - Go
+            - Kubernetes
+            - PostgreSQL
+            - Redis
+            - Docker
+            - REST APIs
+            - GraphQL
+            - AWS
+            - Terraform
+        rising:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items:
+            type: string
+          example:
+            - Rust
+            - WASM
+            - eBPF
+            - OpenTelemetry
+            - Dagger
+
+    # ── Shared error bodies ────────────────────────────────────────────────────
+    ClaudeParseError:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: claude_parse_error
+        message:
+          type: string
+          example: "Claude returned non-JSON output."
+
+    RateLimitError:
+      type: object
+      required: [error, tier, limit, count]
+      properties:
+        error:
+          type: string
+          example: rate_limit_exceeded
+        tier:
+          type: string
+          enum: [free, paid]
+          example: free
+        limit:
+          type: integer
+          example: 50
+        count:
+          type: integer
+          example: 51
+
+    ValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  type: string
+              msg:
+                type: string
+              type:
+                type: string
+
+  responses:
+    RateLimited:
+      description: Daily quota exceeded for this tier.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                $ref: "#/components/schemas/RateLimitError"
+          example:
+            detail:
+              error: rate_limit_exceeded
+              tier: free
+              limit: 50
+              count: 51
+
+    ClaudeParseFailure:
+      description: >
+        Claude returned output that could not be parsed as valid JSON or did
+        not match the expected schema.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              detail:
+                $ref: "#/components/schemas/ClaudeParseError"
+
+    UnprocessableEntity:
+      description: Request body failed Pydantic validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ValidationError"
+
+paths:
+
+  # ── GET /health ──────────────────────────────────────────────────────────────
+  /health:
+    get:
+      operationId: health_check
+      summary: Health check
+      description: >
+        Returns `{"status": "ok"}` when the service is running.
+        No authentication required, not rate-limited.
+      tags: [Meta]
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+                version: "1.0.0"
+
+  # ── POST /resume/parse ───────────────────────────────────────────────────────
+  /resume/parse:
+    post:
+      operationId: parse_resume
+      summary: Parse a resume
+      description: >
+        Extract structured fields from a resume supplied as raw text or a
+        publicly accessible URL.  Returns name, contact info, skills,
+        experience history, education, and detected languages.
+
+
+        Supply either `text` **or** `file_url` — not both.  PDF URLs return
+        HTTP 415; extract the text yourself first.
+      tags: [Resume]
+      security:
+        - {}              # free tier (no key)
+        - ApiKeyAuth: []  # paid tier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseResumeRequest"
+            examples:
+              text_input:
+                summary: Parse from raw text
+                value:
+                  text: |
+                    Alice Smith
+                    alice@example.com | +1-555-0100
+
+                    EXPERIENCE
+                    Senior Engineer — Acme Corp (2019-2024)
+                    • Reduced API latency 40% via query optimisation.
+
+                    EDUCATION
+                    B.Sc. Computer Science, MIT, 2019
+
+                    SKILLS: Python, Go, Kubernetes, PostgreSQL
+                  language: en
+              url_input:
+                summary: Parse from URL
+                value:
+                  file_url: https://example.com/resumes/alice-smith.txt
+      responses:
+        "200":
+          description: Resume parsed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParseResumeResponse"
+              example:
+                name: Alice Smith
+                email: alice@example.com
+                phone: "+1-555-0100"
+                skills: [Python, Go, Kubernetes, PostgreSQL]
+                experience_years: 5
+                experience:
+                  - company: Acme Corp
+                    title: Senior Engineer
+                    duration: "2019-2024"
+                    description: Reduced API latency 40% via query optimisation.
+                education:
+                  - institution: MIT
+                    degree: B.Sc.
+                    field: Computer Science
+                    year: "2019"
+                languages: [English]
+        "400":
+          description: Could not fetch the supplied `file_url`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              example:
+                detail: "Could not fetch file_url: HTTP 404"
+        "415":
+          description: URL content is a PDF (not yet supported).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              example:
+                detail: >
+                  PDF URLs are not yet supported. Extract the text first
+                  and use the 'text' field.
+        "422":
+          description: Validation error or Claude parse failure.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationError"
+                  - type: object
+                    properties:
+                      detail:
+                        $ref: "#/components/schemas/ClaudeParseError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ── POST /resume/score ───────────────────────────────────────────────────────
+  /resume/score:
+    post:
+      operationId: score_resume
+      summary: Score a resume against a job description
+      description: >
+        Compares a resume to a job description and returns numeric scores
+        (0–100) for skill match, experience match, and education match, plus
+        a list of missing skills and a plain-English hiring verdict.
+
+
+        Override the default scoring weights (skills 40 %, experience 40 %,
+        education 20 %) via the optional `weights` object.
+      tags: [Resume]
+      security:
+        - {}
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScoreResumeRequest"
+            examples:
+              default_weights:
+                summary: Score with default weights
+                value:
+                  resume_text: |
+                    Alice Smith — Senior Engineer
+                    5 years Python, Go, Kubernetes. Led platform team at Acme.
+                  job_description: |
+                    Staff Backend Engineer. 6+ yrs Python, distributed systems,
+                    cloud infrastructure (AWS).
+              custom_weights:
+                summary: Score with custom weights (skills-heavy)
+                value:
+                  resume_text: |
+                    Alice Smith — Senior Engineer
+                    5 years Python, Go, Kubernetes.
+                  job_description: |
+                    Staff Backend Engineer. 6+ yrs Python, distributed systems.
+                  weights:
+                    skills: 0.6
+                    experience: 0.3
+                    education: 0.1
+      responses:
+        "200":
+          description: Scoring complete.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScoreResumeResponse"
+              example:
+                overall_score: 74
+                skill_match: 85
+                experience_match: 70
+                education_match: 60
+                missing_skills: ["distributed systems", "AWS"]
+                verdict: >
+                  Strong match on technical skills; candidate lacks explicit
+                  distributed-systems experience required by the role.
+        "422":
+          description: Validation error or Claude parse failure.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationError"
+                  - type: object
+                    properties:
+                      detail:
+                        $ref: "#/components/schemas/ClaudeParseError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ── POST /resume/rewrite ─────────────────────────────────────────────────────
+  /resume/rewrite:
+    post:
+      operationId: rewrite_bullets
+      summary: Rewrite resume bullet points
+      description: >
+        Rewrites up to 20 resume bullet points to be stronger, ATS-friendly,
+        and tailored to a target role.  Returns the same number of bullets in
+        the same order.
+
+
+        Choose a `tone`:
+
+        * **formal** — polished, professional language.
+
+        * **concise** — punchy, max ~12 words per bullet.
+
+        * **impact** — lead with achievement, include metrics, power verbs.
+      tags: [Resume]
+      security:
+        - {}
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RewriteRequest"
+            example:
+              bullets:
+                - "worked on improving the checkout flow"
+                - "helped with customer support tickets"
+              target_role: Senior Product Engineer
+              tone: impact
+      responses:
+        "200":
+          description: Bullets rewritten successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RewriteResponse"
+              example:
+                rewritten_bullets:
+                  - "Reduced cart abandonment 18% by redesigning checkout UX flow."
+                  - "Resolved 95% of tier-1 support tickets within SLA, improving CSAT."
+        "422":
+          description: >
+            Validation error (e.g. invalid tone, empty bullets list, too many
+            bullets) or Claude returned wrong bullet count.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationError"
+                  - type: object
+                    properties:
+                      detail:
+                        $ref: "#/components/schemas/ClaudeParseError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  # ── GET /resume/skills/trending ──────────────────────────────────────────────
+  /resume/skills/trending:
+    get:
+      operationId: trending_skills
+      summary: Get trending skills for a category
+      description: >
+        Returns the top 10 in-demand skills and 5 rapidly rising skills for a
+        given job category and region, derived from Claude's training knowledge
+        of job market trends.
+
+
+        **Note:** data reflects Claude's training cut-off, not live job board
+        data.
+      tags: [Resume]
+      security:
+        - {}
+        - ApiKeyAuth: []
+      parameters:
+        - name: category
+          in: query
+          required: true
+          description: >
+            Skill category.  Examples: `backend`, `frontend`, `data science`,
+            `devops`, `mobile`, `security`.
+          schema:
+            type: string
+          example: backend
+        - name: region
+          in: query
+          required: false
+          description: ISO 3166-1 alpha-2 country code.  Defaults to `US`.
+          schema:
+            type: string
+            default: US
+          example: GB
+      responses:
+        "200":
+          description: Trending skills returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrendingSkillsResponse"
+              examples:
+                backend_us:
+                  summary: Backend skills, US market
+                  value:
+                    category: backend
+                    top_skills:
+                      - Python
+                      - Go
+                      - Kubernetes
+                      - PostgreSQL
+                      - Redis
+                      - Docker
+                      - REST APIs
+                      - GraphQL
+                      - AWS
+                      - Terraform
+                    rising:
+                      - Rust
+                      - WASM
+                      - eBPF
+                      - OpenTelemetry
+                      - Dagger
+                devops_gb:
+                  summary: DevOps skills, GB market
+                  value:
+                    category: devops
+                    top_skills:
+                      - Kubernetes
+                      - Terraform
+                      - AWS
+                      - Azure
+                      - CI/CD
+                      - Docker
+                      - Ansible
+                      - Prometheus
+                      - Helm
+                      - GitOps
+                    rising:
+                      - Crossplane
+                      - Dagger
+                      - OpenTelemetry
+                      - FinOps
+                      - Platform Engineering
+        "422":
+          description: Missing required `category` parameter or Claude parse failure.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationError"
+                  - type: object
+                    properties:
+                      detail:
+                        $ref: "#/components/schemas/ClaudeParseError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
