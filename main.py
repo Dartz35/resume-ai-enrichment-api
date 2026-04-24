@@ -29,9 +29,9 @@ from routes.resume import router as resume_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if not os.environ.get("ANTHROPIC_API_KEY"):
+    if not os.environ.get("GEMINI_API_KEY"):
         raise RuntimeError(
-            "ANTHROPIC_API_KEY environment variable is not set. "
+            "GEMINI_API_KEY environment variable is not set. "
             "Set it before starting the server."
         )
     yield

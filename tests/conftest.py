@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 
 # Must be set before main is imported so the startup guard passes.
-os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key-for-pytest")
+os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key-for-pytest")
 
 import pytest
 from fastapi.testclient import TestClient

@@ -28,7 +28,7 @@ from models.schemas import (
     ScoreResumeResponse,
     TrendingSkillsResponse,
 )
-from services.claude import call_claude_json
+from services.gemini import call_ai_json as call_claude_json
 from services.rate_limiter import enforce_rate_limit
 
 router = APIRouter(tags=["Resume"])
