@@ -1,6 +1,6 @@
 # Resume AI Enrichment API
 
-A production-ready REST API that uses **Claude** (Anthropic) to parse resumes, score candidates against job descriptions, rewrite bullet points, and surface trending skills.
+A production-ready REST API that uses **Google Gemini 2.0 Flash** to parse resumes, score candidates against job descriptions, rewrite bullet points, and surface trending skills.
 
 ---
 
@@ -9,10 +9,10 @@ A production-ready REST API that uses **Claude** (Anthropic) to parse resumes, s
 | Layer | Technology |
 |-------|-----------|
 | Framework | FastAPI 0.115 |
-| LLM | Anthropic Claude (`claude-sonnet-4-20250514`) |
+| AI Model | Google Gemini 2.0 Flash (`gemini-2.0-flash`) |
 | Auth | `X-API-Key` request header |
 | Runtime | Python 3.11 + Uvicorn |
-| Container | Docker (single-stage build) |
+| Container | Docker |
 
 ---
 
@@ -21,13 +21,13 @@ A production-ready REST API that uses **Claude** (Anthropic) to parse resumes, s
 ### 1. Prerequisites
 
 - Python 3.11+
-- An [Anthropic API key](https://console.anthropic.com/keys)
+- A [Google Gemini API key](https://aistudio.google.com/apikey) (free)
 
 ### 2. Clone & install
 
 ```bash
-git clone <your-repo>
-cd resume-ai-api
+git clone https://github.com/YOUR_USERNAME/resume-ai-enrichment-api.git
+cd resume-ai-enrichment-api
 
 python -m venv venv
 # Windows
@@ -40,28 +40,12 @@ pip install -r requirements.txt
 
 ### 3. Set the API key
 
-**Option A — .env file (recommended for local dev)**
-
-```bash
-cp .env.example .env
-# Edit .env and set ANTHROPIC_API_KEY=sk-ant-api03-...
-```
-
-Then load it before starting the server:
-
 ```bash
 # macOS / Linux
-export $(cat .env | xargs)
+export GEMINI_API_KEY="your-key-here"
 
 # Windows PowerShell
-Get-Content .env | ForEach-Object { $k,$v = $_ -split '=',2; [System.Environment]::SetEnvironmentVariable($k,$v) }
-```
-
-**Option B — shell export**
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-api03-..."   # macOS / Linux
-$env:ANTHROPIC_API_KEY="sk-ant-api03-..."     # Windows PowerShell
+$env:GEMINI_API_KEY="your-key-here"
 ```
 
 ### 4. Run locally
@@ -82,7 +66,7 @@ docker build -t resume-ai-api .
 
 # Run
 docker run -p 8000:8000 \
-  -e ANTHROPIC_API_KEY="sk-ant-api03-..." \
+  -e GEMINI_API_KEY="your-key-here" \
   resume-ai-api
 ```
 
@@ -90,10 +74,12 @@ docker run -p 8000:8000 \
 
 ## Rate Limits
 
-| Tier | Header required | Limit |
-|------|----------------|-------|
-| Free | None | 50 req / day (keyed by IP) |
-| Paid | `X-API-Key: <any-non-empty-value>` | 2000 req / day (keyed by key) |
+| Plan | Limit | Price |
+|------|-------|-------|
+| BASIC | 7 req/day (~200/month) | Free |
+| PRO | 500 req/day (~15,000/month) | $9.99/mo |
+| ULTRA | 2,000 req/day (~60,000/month) | $29.99/mo |
+| MEGA | 10,000 req/day (~300,000/month) | $99.99/mo |
 
 Exceeding the limit returns HTTP **429**.
 
@@ -108,7 +94,7 @@ curl http://localhost:8000/health
 ```
 
 ```json
-{"status":"ok","version":"1.0.0"}
+{"status": "ok", "version": "1.0.0"}
 ```
 
 ---
@@ -116,8 +102,6 @@ curl http://localhost:8000/health
 ### `POST /resume/parse`
 
 Parse a resume into structured fields.
-
-**Request body**
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -128,27 +112,21 @@ Parse a resume into structured fields.
 ```bash
 curl -X POST http://localhost:8000/resume/parse \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: my-secret-key" \
+  -H "X-API-Key: my-key" \
   -d '{
-    "text": "Jane Doe\njane@example.com\n\nSoftware Engineer at Acme Corp (2020-2023)\n- Built REST APIs in Python\n- Led team of 4 engineers\n\nB.Sc. Computer Science, McGill University 2019"
+    "text": "Jane Doe\njane@example.com\nSoftware Engineer at Acme (2020-2023)\nSkills: Python, Docker, PostgreSQL"
   }'
 ```
-
-**Response**
 
 ```json
 {
   "name": "Jane Doe",
   "email": "jane@example.com",
   "phone": null,
-  "skills": ["Python", "REST APIs", "Team Leadership"],
+  "skills": ["Python", "Docker", "PostgreSQL"],
   "experience_years": 3,
-  "experience": [
-    {"company":"Acme Corp","title":"Software Engineer","duration":"2020-2023","description":"Built REST APIs in Python. Led team of 4 engineers."}
-  ],
-  "education": [
-    {"institution":"McGill University","degree":"B.Sc.","field":"Computer Science","year":"2019"}
-  ],
+  "experience": [{"company": "Acme", "title": "Software Engineer", "duration": "2020-2023"}],
+  "education": [],
   "languages": ["English"]
 }
 ```
@@ -159,26 +137,21 @@ curl -X POST http://localhost:8000/resume/parse \
 
 Score a resume against a job description.
 
-**Request body**
-
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `resume_text` | string | ✓ | |
 | `job_description` | string | ✓ | |
-| `weights` | object | No | `{skills, experience, education}` — must sum to 1.0, default `0.4/0.4/0.2` |
+| `weights` | object | No | `{skills, experience, education}` — must sum to 1.0 |
 
 ```bash
 curl -X POST http://localhost:8000/resume/score \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: my-secret-key" \
+  -H "X-API-Key: my-key" \
   -d '{
-    "resume_text": "Jane Doe — 5 years Python, Django, PostgreSQL, AWS",
-    "job_description": "We need a senior Python engineer with FastAPI, Docker, and Kubernetes experience.",
-    "weights": {"skills": 0.5, "experience": 0.3, "education": 0.2}
+    "resume_text": "Jane Doe — 5 years Python, Django, PostgreSQL",
+    "job_description": "Senior Python engineer with FastAPI, Docker, Kubernetes."
   }'
 ```
-
-**Response**
 
 ```json
 {
@@ -187,7 +160,7 @@ curl -X POST http://localhost:8000/resume/score \
   "experience_match": 75,
   "education_match": 30,
   "missing_skills": ["FastAPI", "Docker", "Kubernetes"],
-  "verdict": "Solid Python background but missing key infrastructure skills. Consider for a junior-senior role with upskilling in container orchestration."
+  "verdict": "Solid Python background but missing key infrastructure skills."
 }
 ```
 
@@ -196,8 +169,6 @@ curl -X POST http://localhost:8000/resume/score \
 ### `POST /resume/rewrite`
 
 Rewrite resume bullets with stronger action verbs and metrics.
-
-**Request body**
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -208,26 +179,18 @@ Rewrite resume bullets with stronger action verbs and metrics.
 ```bash
 curl -X POST http://localhost:8000/resume/rewrite \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: my-secret-key" \
+  -H "X-API-Key: my-key" \
   -d '{
-    "bullets": [
-      "worked on improving the checkout flow",
-      "helped with customer support tickets",
-      "made the dashboard faster"
-    ],
+    "bullets": ["worked on improving the checkout flow"],
     "target_role": "Senior Product Engineer",
     "tone": "impact"
   }'
 ```
 
-**Response**
-
 ```json
 {
   "rewritten_bullets": [
-    "Redesigned checkout flow, reducing cart abandonment by 18% and increasing conversion rate by 12%.",
-    "Resolved 200+ customer support tickets monthly, achieving a 95% satisfaction score.",
-    "Optimized dashboard query performance by 40%, cutting average load time from 3.2s to 1.9s."
+    "Reduced cart abandonment 18% by redesigning checkout UX flow."
   ]
 }
 ```
@@ -238,56 +201,31 @@ curl -X POST http://localhost:8000/resume/rewrite \
 
 Return trending skills for a category and region.
 
-**Query parameters**
-
-| Param | Required | Default | Notes |
-|-------|----------|---------|-------|
-| `category` | ✓ | — | e.g. `backend`, `data science`, `devops`, `mobile` |
-| `region` | No | `US` | ISO country code |
+| Param | Required | Default | Example |
+|-------|----------|---------|---------|
+| `category` | ✓ | — | `backend`, `devops`, `data science`, `mobile` |
+| `region` | No | `US` | `US`, `GB`, `CA` |
 
 ```bash
-curl "http://localhost:8000/resume/skills/trending?category=devops&region=CA" \
-  -H "X-API-Key: my-secret-key"
+curl "http://localhost:8000/resume/skills/trending?category=devops&region=US" \
+  -H "X-API-Key: my-key"
 ```
-
-**Response**
 
 ```json
 {
   "category": "devops",
-  "top_skills": [
-    "Kubernetes","Terraform","Docker","GitHub Actions","AWS","Ansible",
-    "Prometheus","Helm","ArgoCD","Datadog"
-  ],
-  "rising": ["Platform Engineering","eBPF","OpenTelemetry","Crossplane","Backstage"]
+  "top_skills": ["Kubernetes", "Terraform", "Docker", "AWS", "Helm", "ArgoCD", "Prometheus", "GitHub Actions", "Ansible", "Datadog"],
+  "rising": ["Platform Engineering", "eBPF", "OpenTelemetry", "Crossplane", "Backstage"]
 }
 ```
 
 ---
 
-## Error responses
-
-All errors follow a consistent JSON envelope:
+## Error Responses
 
 | HTTP | When |
 |------|------|
-| 400 | Invalid `file_url` (unreachable or wrong type) |
-| 415 | Unsupported media type at `file_url` (e.g. PDF) |
-| 422 | Input validation failure **or** Claude returned unparseable JSON |
-| 429 | Daily rate limit exceeded |
-| 500 | Unexpected server error |
-
----
-
-## RapidAPI Publishing Checklist
-
-- [ ] **API is live and reachable** — deploy to Railway / Render / EC2 / GCP Run and confirm `GET /health` returns 200.
-- [ ] **HTTPS only** — ensure your hosting provider terminates TLS (most do by default).
-- [ ] **Base URL set in RapidAPI** — paste your deployed base URL (e.g. `https://resume-ai-api.up.railway.app`).
-- [ ] **Security scheme configured** — in RapidAPI dashboard set header auth: `X-API-Key` (RapidAPI injects `X-RapidAPI-Key` automatically; add a proxy header mapping or accept `X-RapidAPI-Key` as the key name).
-- [ ] **Pricing tiers defined** — map your Free (50/day) and Basic/Pro (2000/day) quotas to RapidAPI subscription plans.
-- [ ] **OpenAPI spec imported** — export from `http://your-api/openapi.json` and upload to RapidAPI for auto-generated docs.
-- [ ] **Test each endpoint** from the RapidAPI "Test" tab before publishing.
-- [ ] **Add a description + logo** in the RapidAPI listing page.
-- [ ] **Set rate-limit headers** — optionally expose `X-RateLimit-Remaining` and `X-RateLimit-Limit` response headers for transparency.
-- [ ] **Monitor logs** after going live — watch for 422 spikes (Claude JSON parse errors) which indicate prompts need hardening.
+| 400 | Invalid `file_url` (unreachable) |
+| 415 | PDF URL provided (not supported) |
+| 422 | Validation failure or AI parse error |
+| 429 | Rate limit exceeded |
