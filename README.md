@@ -87,7 +87,9 @@ Exceeding the limit returns HTTP **429**.
 
 ## Endpoints
 
-### `GET /health`
+### Health Check — `GET /health`
+
+Returns `{"status": "ok"}` when the service is running. No authentication required.
 
 ```bash
 curl http://localhost:8000/health
@@ -99,9 +101,9 @@ curl http://localhost:8000/health
 
 ---
 
-### `POST /resume/parse`
+### Parse Resume — `POST /resume/parse`
 
-Parse a resume into structured fields.
+Extract structured data (name, email, skills, experience, education) from raw resume text or a public URL.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -114,18 +116,19 @@ curl -X POST http://localhost:8000/resume/parse \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-key" \
   -d '{
-    "text": "Jane Doe\njane@example.com\nSoftware Engineer at Acme (2020-2023)\nSkills: Python, Docker, PostgreSQL"
+    "text": "Alice Smith\nalice@example.com\nSenior Engineer at Acme Corp 2019-2024\nSkills: Python, Go, Kubernetes",
+    "language": "en"
   }'
 ```
 
 ```json
 {
-  "name": "Jane Doe",
-  "email": "jane@example.com",
+  "name": "Alice Smith",
+  "email": "alice@example.com",
   "phone": null,
-  "skills": ["Python", "Docker", "PostgreSQL"],
-  "experience_years": 3,
-  "experience": [{"company": "Acme", "title": "Software Engineer", "duration": "2020-2023"}],
+  "skills": ["Python", "Go", "Kubernetes"],
+  "experience_years": 5,
+  "experience": [{"company": "Acme Corp", "title": "Senior Engineer", "duration": "2019-2024"}],
   "education": [],
   "languages": ["English"]
 }
@@ -133,9 +136,9 @@ curl -X POST http://localhost:8000/resume/parse \
 
 ---
 
-### `POST /resume/score`
+### Score Resume — `POST /resume/score`
 
-Score a resume against a job description.
+Compare a resume against a job description. Returns match scores (0–100) for skills, experience, and education, plus missing skills and a hiring verdict.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
@@ -148,32 +151,32 @@ curl -X POST http://localhost:8000/resume/score \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-key" \
   -d '{
-    "resume_text": "Jane Doe — 5 years Python, Django, PostgreSQL",
-    "job_description": "Senior Python engineer with FastAPI, Docker, Kubernetes."
+    "resume_text": "Alice Smith. 5 years Python, Go, Kubernetes.",
+    "job_description": "Staff Backend Engineer. 6+ years Python, AWS, distributed systems."
   }'
 ```
 
 ```json
 {
-  "overall_score": 62,
-  "skill_match": 70,
-  "experience_match": 75,
-  "education_match": 30,
-  "missing_skills": ["FastAPI", "Docker", "Kubernetes"],
-  "verdict": "Solid Python background but missing key infrastructure skills."
+  "overall_score": 74,
+  "skill_match": 85,
+  "experience_match": 70,
+  "education_match": 60,
+  "missing_skills": ["AWS", "distributed systems"],
+  "verdict": "Strong match on technical skills; gaps in cloud infrastructure experience."
 }
 ```
 
 ---
 
-### `POST /resume/rewrite`
+### Rewrite Bullets — `POST /resume/rewrite`
 
-Rewrite resume bullets with stronger action verbs and metrics.
+Rewrite resume bullet points with stronger action verbs and metrics, tailored to a target role. Returns the same number of bullets in the same order.
 
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `bullets` | string[] | ✓ | 1–20 bullets |
-| `target_role` | string | ✓ | e.g. `"Senior Backend Engineer"` |
+| `target_role` | string | ✓ | e.g. `"Senior Product Engineer"` |
 | `tone` | string | ✓ | `"formal"` \| `"concise"` \| `"impact"` |
 
 ```bash
@@ -181,7 +184,7 @@ curl -X POST http://localhost:8000/resume/rewrite \
   -H "Content-Type: application/json" \
   -H "X-API-Key: my-key" \
   -d '{
-    "bullets": ["worked on improving the checkout flow"],
+    "bullets": ["worked on improving the checkout flow", "helped with customer support tickets"],
     "target_role": "Senior Product Engineer",
     "tone": "impact"
   }'
@@ -190,32 +193,33 @@ curl -X POST http://localhost:8000/resume/rewrite \
 ```json
 {
   "rewritten_bullets": [
-    "Reduced cart abandonment 18% by redesigning checkout UX flow."
+    "Reduced cart abandonment 18% by redesigning checkout UX flow.",
+    "Resolved 95% of tier-1 support tickets within SLA, improving CSAT scores."
   ]
 }
 ```
 
 ---
 
-### `GET /resume/skills/trending`
+### Trending Skills — `GET /resume/skills/trending`
 
-Return trending skills for a category and region.
+Get the top 10 in-demand and 5 rising skills for a job category and region.
 
-| Param | Required | Default | Example |
-|-------|----------|---------|---------|
-| `category` | ✓ | — | `backend`, `devops`, `data science`, `mobile` |
+| Param | Required | Default | Example values |
+|-------|----------|---------|----------------|
+| `category` | ✓ | — | `backend`, `frontend`, `devops`, `data science`, `mobile`, `security` |
 | `region` | No | `US` | `US`, `GB`, `CA` |
 
 ```bash
-curl "http://localhost:8000/resume/skills/trending?category=devops&region=US" \
+curl "http://localhost:8000/resume/skills/trending?category=backend&region=US" \
   -H "X-API-Key: my-key"
 ```
 
 ```json
 {
-  "category": "devops",
-  "top_skills": ["Kubernetes", "Terraform", "Docker", "AWS", "Helm", "ArgoCD", "Prometheus", "GitHub Actions", "Ansible", "Datadog"],
-  "rising": ["Platform Engineering", "eBPF", "OpenTelemetry", "Crossplane", "Backstage"]
+  "category": "backend",
+  "top_skills": ["Python", "Go", "Kubernetes", "PostgreSQL", "Redis", "Docker", "REST APIs", "GraphQL", "AWS", "Terraform"],
+  "rising": ["Rust", "WASM", "eBPF", "OpenTelemetry", "Dagger"]
 }
 ```
 
