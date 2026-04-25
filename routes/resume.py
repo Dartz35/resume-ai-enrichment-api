@@ -261,7 +261,7 @@ async def trending_skills(
     )
 
     try:
-        data = await call_claude_json(_TRENDING_SYSTEM, user_msg, max_tokens=512)
+        data = await call_claude_json(_TRENDING_SYSTEM, user_msg, max_tokens=2048)
     except ValueError as exc:
         raise _claude_error(str(exc)) from exc
 
