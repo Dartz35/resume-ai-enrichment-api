@@ -17,7 +17,7 @@ import re
 from google import genai
 from google.genai import types
 
-MODEL = "gemini-2.5-flash-preview-04-17"
+MODEL = "gemini-3-flash-preview"
 
 _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
 
