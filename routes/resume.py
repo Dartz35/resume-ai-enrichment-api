@@ -164,7 +164,7 @@ async def score_resume(
     )
 
     try:
-        data = await call_claude_json(_SCORE_SYSTEM, user_msg, max_tokens=1024)
+        data = await call_claude_json(_SCORE_SYSTEM, user_msg, max_tokens=4096)
     except ValueError as exc:
         raise _claude_error(str(exc)) from exc
 
