@@ -136,7 +136,7 @@ def test_rewrite_missing_tone_returns_422(client):
 def test_rewrite_too_many_bullets_returns_422(client):
     r = client.post(
         ENDPOINT,
-        json={**BASE_BODY, "bullets": ["bullet"] * 21},  # max is 20
+        json={**BASE_BODY, "bullets": ["bullet"] * 26},  # max is 25
         headers=AUTH,
     )
     assert r.status_code == 422

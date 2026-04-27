@@ -179,11 +179,13 @@ async def score_resume(
 # ---------------------------------------------------------------------------
 
 _REWRITE_SYSTEM = """You are a resume writer API endpoint.
-Rewrite the provided bullet points to be stronger, more impactful, and ATS-friendly.
+Rewrite the EXACT bullet points provided by the user — do NOT invent new bullets or use placeholder examples.
+Each output bullet must be a stronger, more impactful, ATS-friendly version of the corresponding input bullet.
+Preserve the domain and subject matter of every bullet (e.g. if the input is about drone firmware, the output must also be about drone firmware).
 
 Rules:
   - Start each bullet with a strong past-tense action verb.
-  - Add quantifiable metrics where clearly implied (e.g. "improved speed" → "improved speed by ~30%").
+  - Add quantifiable metrics where clearly implied by the input text (e.g. "improved speed" → "improved speed by ~30%").
   - Apply the specified tone:
       formal  → polished, professional, third-person-readable language
       concise → short punchy bullets, max ~12 words each
